@@ -69,6 +69,14 @@ def show():
 
         try:
             df_filtered = db.buscar_tasks(tp_comp_filter)
+            df_filtered.rename(columns={
+                "etapa": "Etapa",
+                "task": "Task",
+                "descricao": "Descrição",
+                "responsavel": "Responsável",
+                "esforco": "Esforço",
+                "tp_comp": "Tp_Comp"
+            }, inplace=True)
             st.success("Tasks carregadas do banco com sucesso.")
         except Exception as e:
             st.error(f"Erro ao buscar tasks do banco: {e}")
