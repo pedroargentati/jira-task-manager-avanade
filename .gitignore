@@ -33,6 +33,8 @@ var/
 .pytest_cache/
 .cache/
 
+node_modules
+
 # Logs
 *.log
 

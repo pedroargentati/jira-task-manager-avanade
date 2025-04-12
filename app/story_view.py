@@ -1,167 +1,132 @@
 import streamlit as st
 import pandas as pd
 
+from usecases.jira_usecase import JiraUseCase
+from services.card_service import filter_cards_from_csv, normalize_task_columns
+from adapters.db_provider import get_db_instance
+from app import session
+from infra.config_loader import get_db_config
+
 def show():
     st.title("Detalhes da Estória")
 
-    # Dados da estória e subtasks existentes do Jira
-    story = st.session_state.get("story", "")
-    issue_data = st.session_state.get("issue_data", {})
+    story = session.get("story", "")
+    issue_data = session.get("issue_data", {})
     subtasks = issue_data.get("fields", {}).get("subtasks", [])
 
     st.text_input("Estória", story, disabled=True)
 
-    # Tipo de aplicação
     app_type = st.selectbox(
         "Tipo de Aplicação",
         ["Mobile", "BD", "TF", "TFWEB", "Mainframe", "BFF", "SRV", "API", "MobilePF", "CCB"],
         key="app_type_select"
     )
+
     tp_comp_filter = app_type.strip()
 
-    # Exibir subtasks do Jira
     if subtasks:
         st.subheader("Subtasks já existentes no Jira")
-        subtask_data = []
-        for subtask in subtasks:
-            fields = subtask.get("fields", {})
-            status = fields.get("status", {})
-            subtask_data.append({
-                "Chave": subtask.get("key"),
-                "Resumo": fields.get("summary", "-"),
-                "Status": status.get("name", "")
-            })
+        subtask_data = [
+            {
+                "Chave": sub.get("key"),
+                "Resumo": sub.get("fields", {}).get("summary", "-"),
+                "Status": sub.get("fields", {}).get("status", {}).get("name", "")
+            } for sub in subtasks
+        ]
+        st.dataframe(pd.DataFrame(subtask_data), use_container_width=True)
 
-        subtask_df = pd.DataFrame(subtask_data)
-        st.dataframe(subtask_df, use_container_width=True)
-
-    # Escolha da fonte dos cards
-    source = st.radio(
-        "Fonte dos cards",
-        ["Importar de CSV", "Buscar no Banco de Dados"],
-        key="source_radio"
-    )
-
+    source = st.radio("Fonte dos cards", ["Importar de CSV", "Buscar no Banco de Dados"], key="source_radio")
     df_filtered = None
 
     if source == "Importar de CSV":
         uploaded_file = st.file_uploader("Selecione o arquivo CSV", type=["csv"], key="csv_uploader")
 
-        if uploaded_file is not None and "csv_df_original" not in st.session_state:
+        if uploaded_file is not None and not session.exists("csv_df_original"):
             try:
                 df_original = pd.read_csv(uploaded_file)
-                st.session_state.csv_df_original = df_original
+                session.set("csv_df_original", df_original)
                 st.success("Arquivo carregado com sucesso.")
             except Exception as e:
                 st.error(f"Erro ao ler o arquivo: {e}")
 
-        # Refiltrar ao trocar tipo de aplicação
-        if "csv_df_original" in st.session_state:
-            df = st.session_state.csv_df_original.copy()
-            if "Tp_Comp" in df.columns:
-                df["Tp_Comp"] = df["Tp_Comp"].fillna("").astype(str)
-                df_filtered = df[df["Tp_Comp"].str.contains(tp_comp_filter, case=False, na=False)]
+        if session.exists("csv_df_original"):
+            df_filtered = filter_cards_from_csv(session.get("csv_df_original").copy(), tp_comp_filter)
 
     elif source == "Buscar no Banco de Dados":
-        from adapters.db_provider import get_db_instance
-        props = st.session_state["database"]["props"]
+        props = session.get("database", {}).get("props", {})
+        if not props:
+            props = get_db_config(session.get("props", {}))
         db = get_db_instance(props)
-
         try:
             df_filtered = db.buscar_tasks(tp_comp_filter)
-            df_filtered.rename(columns={
-                "etapa": "Etapa",
-                "task": "Task",
-                "descricao": "Descrição",
-                "responsavel": "Responsável",
-                "esforco": "Esforço",
-                "tp_comp": "Tp_Comp"
-            }, inplace=True)
+            df_filtered = normalize_task_columns(df_filtered)
             st.success("Tasks carregadas do banco com sucesso.")
         except Exception as e:
             st.error(f"Erro ao buscar tasks do banco: {e}")
 
-    # Exibir a tabela filtrada
     if df_filtered is not None and not df_filtered.empty:
         st.subheader("Cards importados")
         columns_to_display = ["Etapa", "Task", "Descrição", "Responsável", "Esforço"]
         available_columns = [col for col in columns_to_display if col in df_filtered.columns]
 
         if available_columns:
-           # Adiciona coluna para seleção
             df_filtered["Selecionar"] = False
-
-            # Permite o usuário selecionar via UI
-            edited_df = st.data_editor(
+            st.data_editor(
                 df_filtered[["Selecionar"] + available_columns],
                 use_container_width=True,
                 num_rows="dynamic",
                 key="task_selector"
             )
         else:
-            st.warning("Nenhuma coluna esperada foi encontrada no CSV.")
+            st.warning("Nenhuma coluna esperada foi encontrada.")
 
-    # Botões de ação
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Voltar"):
-            st.session_state.page = 'main'
-            st.rerun()
+            session.page_to("main")
+
     with col2:
         if st.button("Criar Tasks"):
             if df_filtered is None or df_filtered.empty:
                 st.warning("Nenhuma task carregada para criação.")
-            else:
-                from adapters.jira_api import JiraApi
-                props = {
-                    "jira.email": st.session_state.get("email"),
-                    "jira.token": st.session_state.get("token"),
-                    "jira.base.url": st.session_state.get("base_url"),
-                    "jira.project.key": st.session_state.get("project_key"),
+                return
+
+            task_data = session.get("task_selector", {})
+            edited_rows = task_data.get("edited_rows", {})
+            selected_indices = [i for i, v in edited_rows.items() if v.get("Selecionar")]
+            selected_df = df_filtered.iloc[selected_indices]
+
+            if selected_df.empty:
+                st.warning("Nenhuma task foi selecionada para criação.")
+                return
+
+            task_list = [
+                {
+                    "summary": str(row.get("Task", "")).strip(),
+                    "description": str(row.get("Descrição", "")).strip()
                 }
-                jira = JiraApi(base_url=props["jira.base.url"])
+                for _, row in selected_df.iterrows() if row.get("Task")
+            ]
 
-                task_data = st.session_state["task_selector"]
-                edited_rows = task_data.get("edited_rows", {})
+            jira = JiraUseCase(
+                base_url=session.get("base_url"),
+                email=session.get("email"),
+                token=session.get("token")
+            )
 
-                selected_indices = [i for i, v in edited_rows.items() if v.get("Selecionar")]
-                selected_df = df_filtered.iloc[selected_indices]
+            success, result = jira.create_subtasks(
+                project_id=issue_data.get("fields", {}).get("project", {}).get("id"),
+                parent_key=story,
+                tasks=task_list
+            )
 
-                if selected_df.empty:
-                    st.warning("Nenhuma task foi selecionada para criação.")
+            if success:
+                st.success(f"✅ {len(result.get('issues', []))} subtasks criadas com sucesso.")
+                updated_issue = jira.get_issue_details(story)
+                if updated_issue:
+                    session.set("issue_data", updated_issue)
+                    st.rerun()
                 else:
-                    task_list = []
-                    for _, row in selected_df.iterrows():
-                        summary = str(row.get("Task") or "").strip()
-                        description = str(row.get("Descrição") or "").strip()
-                        if summary:
-                            task_list.append({"summary": summary, "description": description})
-
-                    success, result = jira.create_bulk_subtasks(
-                        email=props.get("jira.email"),
-                        token=props.get("jira.token"),
-                        project_id=issue_data.get("fields", {}).get("project", {}).get("id"),
-                        parent_key=story,
-                        tasks=task_list
-                    )
-
-                    if success:
-                        st.success(f"✅ {len(result.get('issues', []))} subtasks criadas com sucesso.")
-
-                        # 🔁 Atualiza os dados da estória no session_state
-                        updated_issue = jira.get_issue_details(
-                            email=props["jira.email"],
-                            token=props["jira.token"],
-                            issue_key=story
-                        )
-
-                        if updated_issue:
-                            st.session_state.issue_data = updated_issue
-                            st.rerun()
-                        else:
-                            st.warning("As subtasks foram criadas, mas não foi possível atualizar a lista.")
-                    else:
-                        st.error(f"❌ Erro ao criar subtasks: {result}")
-
-
-
+                    st.warning("As subtasks foram criadas, mas não foi possível atualizar a lista.")
+            else:
+                st.error(f"❌ Erro ao criar subtasks: {result}")
