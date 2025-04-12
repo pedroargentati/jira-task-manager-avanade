@@ -1,0 +1,55 @@
+# Bytecode Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambiente virtual
+env/
+venv/
+ENV/
+.venv/
+.ENV/
+
+# Ferramentas de build
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testes / Cobertura
+.coverage
+.tox/
+.nox/
+.pytest_cache/
+.cache/
+
+# Logs
+*.log
+
+# IDEs / editores
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Arquivos temporários / sistema
+*.DS_Store
+*.swp
+*.bak
+*.tmp
+~$*
+
+# Arquivos do Streamlit
+.streamlit/config.toml
+
+application.properties
