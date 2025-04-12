@@ -84,4 +84,37 @@ def show():
             st.session_state.page = 'main'
             st.rerun()
     with col2:
-        st.button("Criar Tasks (em breve)")
+        if st.button("Criar Tasks"):
+            if df_filtered is None or df_filtered.empty:
+                st.warning("Nenhuma task carregada para criação.")
+            else:
+                from adapters.jira_api import JiraApi
+                props = {
+                    "jira.email": st.session_state.get("email"),
+                    "jira.token": st.session_state.get("token"),
+                    "jira.base.url": st.session_state.get("base_url"),
+                    "jira.project.key": st.session_state.get("project_key"),
+                }
+                jira = JiraApi(base_url=props["jira.base.url"])
+
+                # Construir todas as subtasks primeiro
+                task_list = []
+                for _, row in df_filtered.iterrows():
+                    summary = str(row.get("Task") or row.get("Descrição") or "").strip()
+                    if summary:
+                        task_list.append({"summary": summary})
+
+                # Fazer apenas UMA requisição em lote
+                success, result = jira.create_bulk_subtasks(
+                    email=props.get("jira.email"),
+                    token=props.get("jira.token"),
+                    project_id=issue_data.get("fields", {}).get("project", {}).get("id"),
+                    parent_key=story,
+                    tasks=task_list
+                )
+
+                if success:
+                    st.success(f"✅ {len(result.get('issues', []))} subtasks criadas com sucesso.")
+                else:
+                    st.error(f"❌ Erro ao criar subtasks: {result}")
+

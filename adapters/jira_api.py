@@ -6,7 +6,7 @@ class JiraApi:
         self.base_url = base_url
 
     def get_issue_details(self, email, token, issue_key):
-        url = f"{self.base_url}/{issue_key}"
+        url = f"{self.base_url}/issue/{issue_key}"
         print(f"[JiraApi] Consultando estória: {url}")
 
         auth = HTTPBasicAuth(email, token)
@@ -26,3 +26,72 @@ class JiraApi:
         except Exception as e:
             print(f"[JiraApi] Erro: {e}")
             return None
+        
+    def get_project_id(self, email, token, project_key):
+        from requests.auth import HTTPBasicAuth
+        import requests
+
+        url = f"{self.base_url}/project/{project_key}"
+        auth = HTTPBasicAuth(email, token)
+        headers = {
+            "Accept": "application/json"
+        }
+
+        response = requests.get(url, headers=headers, auth=auth)
+        if response.status_code == 200:
+            project_data = response.json()
+            return project_data.get("id")  # retorna o ID do projeto
+        else:
+            print(f"Erro ao buscar ID do projeto: {response.status_code}")
+            print(response.text)
+            return None
+
+        
+    def create_bulk_subtasks(self, email, token, project_id, parent_key, tasks):
+        """
+        tasks: lista de strings ou dicts com título da subtask
+        """
+        from requests.auth import HTTPBasicAuth
+        import requests
+
+        url = f"{self.base_url}/issue/bulk"
+
+        auth = HTTPBasicAuth(email, token)
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
+
+        issue_updates = []
+        for task in tasks:
+            summary = task.get("summary")
+            if not summary:
+                continue
+
+            issue_updates.append({
+                "fields": {
+                    "summary": summary,
+                    "issuetype": { "name": "Sub-task" },
+                    "project": { "id": project_id },
+                    "parent": { "key": parent_key },
+                    "issuetype": { "id": 10010 },
+                }
+            })
+
+        payload = {
+            "issueUpdates": issue_updates
+        }
+
+        response = requests.post(url, headers=headers, auth=auth, json=payload)
+        print("---------------------REQUEST---------------------")
+        print(f"[JiraAPI] URL: {url}")
+        print(f"[JiraAPI] Status: {response.status_code}")
+        print(f"[JiraAPI] Response: {response.text}")
+        print("--------------------------------------------------")
+
+        if response.status_code == 201:
+            return True, response.json()
+        else:
+            return False, response.text
+
+

@@ -50,6 +50,7 @@ def show():
             st.session_state.email = email
             st.session_state.token = token
             st.session_state.story = story
+            st.session_state.base_url = base_url
             st.session_state.issue_data = issue_data
             st.session_state.page = 'story'
             st.rerun()
