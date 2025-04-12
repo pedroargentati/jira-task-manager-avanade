@@ -1,5 +1,7 @@
 import requests
 from requests.auth import HTTPBasicAuth
+from requests.auth import HTTPBasicAuth
+import requests
 
 class JiraApi:
     def __init__(self, base_url):
@@ -52,17 +54,14 @@ class JiraApi:
         
     def create_bulk_subtasks(self, email, token, project_id, parent_key, tasks):
         """
-        tasks: lista de strings ou dicts com título da subtask
+        Cria subtasks em lote via Jira API.
         """
-        from requests.auth import HTTPBasicAuth
-        import requests
-
         url = f"{self.base_url}/issue/bulk"
-
         auth = HTTPBasicAuth(email, token)
         headers = {
             "Accept": "application/json",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "X-Atlassian-Token": "no-check"  # <- evita erro XSRF no Electron/local
         }
 
         issue_updates = []
@@ -86,7 +85,7 @@ class JiraApi:
                             }
                         ]
                     },
-                    "issuetype": { "id": 10010 },
+                    "issuetype": {"id": 10010},  # Sub-task ID (ajuste se necessário)
                     "project": {"id": project_id},
                     "parent": {"key": parent_key}
                 }
@@ -103,6 +102,7 @@ class JiraApi:
             return True, response.json()
         else:
             return False, response.text
+
 
     def update_subtask(self, email, token, issue_key, summary, description):
         url = f"{self.base_url}/issue/{issue_key}"
