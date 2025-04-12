@@ -133,7 +133,3 @@ npm run app:dist
 - [ ] Autenticação com OAuth 2.0 no Jira
 
 ---
-
-## 👨‍💻 Desenvolvido por
-
-Pedro Martins Argentati e assistido com ❤️ por ChatGPT 🧠
