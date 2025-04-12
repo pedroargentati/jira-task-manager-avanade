@@ -28,8 +28,8 @@ def show():
             status = fields.get("status", {})
             subtask_data.append({
                 "Chave": subtask.get("key"),
-                "Status": status.get("name", ""),
-                "Ícone": status.get("iconUrl", "")
+                "Resumo": fields.get("summary", "-"),
+                "Status": status.get("name", "")
             })
 
         subtask_df = pd.DataFrame(subtask_data)
