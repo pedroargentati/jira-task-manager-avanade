@@ -23,6 +23,13 @@ def show():
     email = props.get("jira.email")
     token = props.get("jira.token")
     project_key = props.get("jira.project.key")
+    mysql_url = props.get("MYSQL_URL")
+    mysql_username = props.get("MYSQL_USERNAME")
+    mysql_password = props.get("MYSQL_PASSWORD")
+    mysql_database_name = props.get("MYSQL_DATABASE_NAME")
+    mysql_host = props.get("MYSQL_HOST", "localhost")
+    mysql_port = int(props.get("MYSQL_PORT", 3306))
+    provider = props.get("database.provider", "mysql").lower()
 
     if email and token:
         st.success("Credenciais carregadas automaticamente.")
@@ -53,5 +60,16 @@ def show():
             st.session_state.base_url = base_url
             st.session_state.issue_data = issue_data
             st.session_state.page = 'story'
+            st.session_state["database"] = {
+                "props": {
+                    "MYSQL_URL": mysql_url,
+                    "MYSQL_USERNAME": mysql_username,
+                    "MYSQL_PASSWORD": mysql_password,
+                    "MYSQL_DATABASE_NAME": mysql_database_name,
+                    "MYSQL_HOST": mysql_host,
+                    "MYSQL_PORT": mysql_port,
+                    "provider": provider
+                }
+            }
             st.rerun()
 

@@ -63,8 +63,15 @@ def show():
                 df_filtered = df[df["Tp_Comp"].str.contains(tp_comp_filter, case=False, na=False)]
 
     elif source == "Buscar no Banco de Dados":
-        st.info("Integração com banco ainda será implementada.")
-        # Aqui você poderá conectar e aplicar o mesmo filtro
+        from adapters.db_provider import get_db_instance
+        props = st.session_state["database"]["props"]
+        db = get_db_instance(props)
+
+        try:
+            df_filtered = db.buscar_tasks(tp_comp_filter)
+            st.success("Tasks carregadas do banco com sucesso.")
+        except Exception as e:
+            st.error(f"Erro ao buscar tasks do banco: {e}")
 
     # Exibir a tabela filtrada
     if df_filtered is not None and not df_filtered.empty:
