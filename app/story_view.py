@@ -26,14 +26,63 @@ def show():
 
     if subtasks:
         st.subheader("Subtasks já existentes no Jira")
-        subtask_data = [
-            {
+
+        editable_data = []
+        for sub in subtasks:
+            fields = sub.get("fields", {})
+            description = fields.get("description", {})
+            content = description.get("content", [])
+            desc_text = ""
+            if content and isinstance(content, list):
+                desc_text = content[0].get("content", [{}])[0].get("text", "")
+
+            editable_data.append({
                 "Chave": sub.get("key"),
-                "Resumo": sub.get("fields", {}).get("summary", "-"),
-                "Status": sub.get("fields", {}).get("status", {}).get("name", "")
-            } for sub in subtasks
-        ]
-        st.dataframe(pd.DataFrame(subtask_data), use_container_width=True)
+                "Resumo": fields.get("summary", "-"),
+                "Descrição": desc_text
+            })
+
+        original_df = pd.DataFrame(editable_data)
+
+        edited_df = st.data_editor(
+            original_df.copy(),
+            num_rows="dynamic",
+            use_container_width=True,
+            key="subtask_editor"
+        )
+
+        if st.button("Salvar alterações nas subtasks"):
+            # Compara os dois dataframes para saber o que foi editado
+            changes = edited_df.ne(original_df)  # DataFrame de bools
+            changed_rows = changes.any(axis=1)   # Linhas com pelo menos uma alteração
+            changed_df = edited_df[changed_rows]
+
+            if changed_df.empty:
+                st.info("Nenhuma alteração detectada.")
+            else:
+                from adapters.jira_api import JiraApi
+                jira = JiraApi(base_url=session.get("base_url"))
+                email = session.get("email")
+                token = session.get("token")
+
+                updated_count = 0
+                for _, row in changed_df.iterrows():
+                    success = jira.update_subtask(
+                        email=email,
+                        token=token,
+                        issue_key=row["Chave"],
+                        summary=row["Resumo"],
+                        description=row["Descrição"]
+                    )
+                    if success:
+                        updated_count += 1
+
+                st.success(f"✅ {updated_count} subtasks atualizadas com sucesso.")
+                updated_issue = jira.get_issue_details(email=email, token=token, issue_key=story)
+                if updated_issue:
+                    session.set("issue_data", updated_issue)
+                    st.rerun()
+
 
     source = st.radio("Fonte dos cards", ["Importar de CSV", "Buscar no Banco de Dados"], key="source_radio")
     df_filtered = None

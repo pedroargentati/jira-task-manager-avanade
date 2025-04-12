@@ -16,6 +16,8 @@ class JiraApi:
 
         try:
             response = requests.get(url, headers=headers, auth=auth)
+            self.print_response(response)
+
             print(f"[JiraApi] Status Code: {response.status_code}")
             print(f"[JiraApi] Response Text: {response.text}")
 
@@ -38,6 +40,7 @@ class JiraApi:
         }
 
         response = requests.get(url, headers=headers, auth=auth)
+        self.print_response(response)
         if response.status_code == 200:
             project_data = response.json()
             return project_data.get("id")  # retorna o ID do projeto
@@ -94,15 +97,47 @@ class JiraApi:
         }
 
         response = requests.post(url, headers=headers, auth=auth, json=payload)
-        print("---------------------REQUEST---------------------")
-        print(f"[JiraAPI] URL: {url}")
-        print(f"[JiraAPI] Status: {response.status_code}")
-        print(f"[JiraAPI] Response: {response.text}")
-        print("--------------------------------------------------")
+        self.print_response(response)
 
         if response.status_code == 201:
             return True, response.json()
         else:
             return False, response.text
 
+    def update_subtask(self, email, token, issue_key, summary, description):
+        url = f"{self.base_url}/issue/{issue_key}"
+        auth = HTTPBasicAuth(email, token)
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
 
+        payload = {
+            "fields": {
+                "summary": summary,
+                "description": {
+                    "type": "doc",
+                    "version": 1,
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {"type": "text", "text": description}
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+
+        response = requests.put(url, json=payload, headers=headers, auth=auth)
+        self.print_response(response)
+        return response.status_code == 204
+
+
+    def print_response(self, response):
+        print("---------------------REQUEST---------------------")
+        print(f"[JiraAPI] URL: {response.url}")
+        print(f"[JiraAPI] Status: {response.status_code}")
+        print(f"[JiraAPI] Response: {response.text}")
+        print("--------------------------------------------------")
