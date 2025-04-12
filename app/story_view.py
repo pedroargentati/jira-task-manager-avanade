@@ -88,7 +88,16 @@ def show():
         available_columns = [col for col in columns_to_display if col in df_filtered.columns]
 
         if available_columns:
-            st.dataframe(df_filtered[available_columns], use_container_width=True)
+           # Adiciona coluna para seleção
+            df_filtered["Selecionar"] = False
+
+            # Permite o usuário selecionar via UI
+            edited_df = st.data_editor(
+                df_filtered[["Selecionar"] + available_columns],
+                use_container_width=True,
+                num_rows="dynamic",
+                key="task_selector"
+            )
         else:
             st.warning("Nenhuma coluna esperada foi encontrada no CSV.")
 
@@ -112,28 +121,34 @@ def show():
                 }
                 jira = JiraApi(base_url=props["jira.base.url"])
 
-                # Construir todas as subtasks primeiro
-                task_list = []
-                for _, row in df_filtered.iterrows():
-                    summary = str(row.get("Task") or "").strip()
-                    description = str(row.get("Descrição") or "").strip()
-                    if summary:
-                        task_list.append({
-                            "summary": summary,
-                            "description": description
-                        })
+                task_data = st.session_state["task_selector"]
+                edited_rows = task_data.get("edited_rows", {})
 
-                # Fazer apenas UMA requisição em lote
-                success, result = jira.create_bulk_subtasks(
-                    email=props.get("jira.email"),
-                    token=props.get("jira.token"),
-                    project_id=issue_data.get("fields", {}).get("project", {}).get("id"),
-                    parent_key=story,
-                    tasks=task_list
-                )
+                selected_indices = [i for i, v in edited_rows.items() if v.get("Selecionar")]
+                selected_df = df_filtered.iloc[selected_indices]
 
-                if success:
-                    st.success(f"✅ {len(result.get('issues', []))} subtasks criadas com sucesso.")
+                if selected_df.empty:
+                    st.warning("Nenhuma task foi selecionada para criação.")
                 else:
-                    st.error(f"❌ Erro ao criar subtasks: {result}")
+                    task_list = []
+                    for _, row in selected_df.iterrows():
+                        summary = str(row.get("Task") or "").strip()
+                        description = str(row.get("Descrição") or "").strip()
+                        if summary:
+                            task_list.append({"summary": summary, "description": description})
+
+                    success, result = jira.create_bulk_subtasks(
+                        email=props.get("jira.email"),
+                        token=props.get("jira.token"),
+                        project_id=issue_data.get("fields", {}).get("project", {}).get("id"),
+                        parent_key=story,
+                        tasks=task_list
+                    )
+
+                    if success:
+                        st.success(f"✅ {len(result.get('issues', []))} subtasks criadas com sucesso.")
+                    else:
+                        st.error(f"❌ Erro ao criar subtasks: {result}")
+
+
 
