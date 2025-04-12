@@ -147,6 +147,19 @@ def show():
 
                     if success:
                         st.success(f"✅ {len(result.get('issues', []))} subtasks criadas com sucesso.")
+
+                        # 🔁 Atualiza os dados da estória no session_state
+                        updated_issue = jira.get_issue_details(
+                            email=props["jira.email"],
+                            token=props["jira.token"],
+                            issue_key=story
+                        )
+
+                        if updated_issue:
+                            st.session_state.issue_data = updated_issue
+                            st.rerun()
+                        else:
+                            st.warning("As subtasks foram criadas, mas não foi possível atualizar a lista.")
                     else:
                         st.error(f"❌ Erro ao criar subtasks: {result}")
 
