@@ -100,9 +100,13 @@ def show():
                 # Construir todas as subtasks primeiro
                 task_list = []
                 for _, row in df_filtered.iterrows():
-                    summary = str(row.get("Task") or row.get("Descrição") or "").strip()
+                    summary = str(row.get("Task") or "").strip()
+                    description = str(row.get("Descrição") or "").strip()
                     if summary:
-                        task_list.append({"summary": summary})
+                        task_list.append({
+                            "summary": summary,
+                            "description": description
+                        })
 
                 # Fazer apenas UMA requisição em lote
                 success, result = jira.create_bulk_subtasks(

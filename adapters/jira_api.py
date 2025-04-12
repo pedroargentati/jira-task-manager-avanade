@@ -65,16 +65,27 @@ class JiraApi:
         issue_updates = []
         for task in tasks:
             summary = task.get("summary")
+            description = task.get("description", "")
             if not summary:
+                print(f"[JiraApi] Ignorando task sem título: {task}")
                 continue
 
             issue_updates.append({
                 "fields": {
                     "summary": summary,
-                    "issuetype": { "name": "Sub-task" },
-                    "project": { "id": project_id },
-                    "parent": { "key": parent_key },
+                    "description": {
+                        "type": "doc",
+                        "version": 1,
+                        "content": [
+                            {
+                                "type": "paragraph",
+                                "content": [{"type": "text", "text": description}]
+                            }
+                        ]
+                    },
                     "issuetype": { "id": 10010 },
+                    "project": {"id": project_id},
+                    "parent": {"key": parent_key}
                 }
             })
 
